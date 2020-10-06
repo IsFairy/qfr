@@ -112,7 +112,8 @@ namespace qc {
 		std::array<fp, MAX_PARAMETERS>    parameter{ };
 		
 		unsigned short nqubits     = 0;
-		OpType         type = None;         // Op type
+		unsigned short start_qubit = 0;
+		OpType         type        = None;  // Op type
 		bool           multiTarget = false; // flag to distinguish multi target operations
 		bool           controlled  = false; // flag to distinguish multi control operations
 		char           name[MAX_STRING_LENGTH]{ };
@@ -130,7 +131,6 @@ namespace qc {
 			return permutation;
 		}
 		static std::map<unsigned short, unsigned short> standardPermutation;
-
 	public:
 		Operation() = default;
 		Operation(const Operation& op) = delete;

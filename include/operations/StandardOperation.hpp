@@ -94,7 +94,7 @@ namespace qc {
 		static OpType parseU1(fp& lambda);
 		
 		void checkUgate();
-		void setup(unsigned short nq, fp par0, fp par1, fp par2);	
+		void setup(unsigned short nq, fp par0, fp par1, fp par2, unsigned short start_qubit);	
 		
 		dd::Edge getDD(std::unique_ptr<dd::Package>& dd, std::array<short, MAX_QUBITS>& line, bool inverse, const std::map<unsigned short, unsigned short>& permutation = standardPermutation) const;
 
@@ -102,20 +102,20 @@ namespace qc {
 		StandardOperation() = default;
 
 		// Standard Constructors
-		StandardOperation(unsigned short nq, unsigned short                     target, OpType g, fp lambda = 0, fp phi = 0, fp theta = 0);
-		StandardOperation(unsigned short nq, const std::vector<unsigned short>& targets, OpType g, fp lambda = 0, fp phi = 0, fp theta = 0);
+		StandardOperation(unsigned short nq, unsigned short                     target, OpType g, fp lambda = 0, fp phi = 0, fp theta = 0, unsigned short start_qubit = 0);
+		StandardOperation(unsigned short nq, const std::vector<unsigned short>& targets, OpType g, fp lambda = 0, fp phi = 0, fp theta = 0, unsigned short start_qubit = 0);
 
-		StandardOperation(unsigned short nq, Control control, unsigned short                     target, OpType g, fp lambda = 0, fp phi = 0, fp theta = 0);
-		StandardOperation(unsigned short nq, Control control, const std::vector<unsigned short>& targets, OpType g, fp lambda = 0, fp phi = 0, fp theta = 0);
+		StandardOperation(unsigned short nq, Control control, unsigned short                     target, OpType g, fp lambda = 0, fp phi = 0, fp theta = 0, unsigned short start_qubit = 0);
+		StandardOperation(unsigned short nq, Control control, const std::vector<unsigned short>& targets, OpType g, fp lambda = 0, fp phi = 0, fp theta = 0, unsigned short start_qubit = 0);
 
-		StandardOperation(unsigned short nq, const std::vector<Control>& controls, unsigned short                     target, OpType g, fp lambda = 0, fp phi = 0, fp theta = 0);
-		StandardOperation(unsigned short nq, const std::vector<Control>& controls, const std::vector<unsigned short>& targets, OpType g, fp lambda = 0, fp phi = 0, fp theta = 0);
+		StandardOperation(unsigned short nq, const std::vector<Control>& controls, unsigned short                     target, OpType g, fp lambda = 0, fp phi = 0, fp theta = 0, unsigned short start_qubit = 0);
+		StandardOperation(unsigned short nq, const std::vector<Control>& controls, const std::vector<unsigned short>& targets, OpType g, fp lambda = 0, fp phi = 0, fp theta = 0, unsigned short start_qubit = 0);
 
 		// MCT Constructor
-		StandardOperation(unsigned short nq, const std::vector<Control>& controls, unsigned short target);
+		StandardOperation(unsigned short nq, const std::vector<Control>& controls, unsigned short target, unsigned short start_qubit = 0);
 
 		// MCF (cSWAP) and Peres Constructor
-		StandardOperation(unsigned short nq, const std::vector<Control>& controls, unsigned short target0, unsigned short target1, OpType g);
+		StandardOperation(unsigned short nq, const std::vector<Control>& controls, unsigned short target0, unsigned short target1, OpType g, unsigned short start_qubit = 0);
 
 		bool isStandardOperation() const override {
 			return true;
