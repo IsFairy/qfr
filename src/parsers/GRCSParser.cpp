@@ -12,7 +12,7 @@ void qc::QuantumComputation::importGRCS(std::istream& is) {
 	unsigned short target = 0;
 	unsigned int cycle = 0;
 	while (std::getline(is, line)) {
-		if (line.empty()) continue;
+		if (line.empty() || line.size() == 1) continue;
 		std::stringstream ss(line);
 		ss >> cycle;
 		ss >> identifier;
@@ -35,7 +35,8 @@ void qc::QuantumComputation::importGRCS(std::istream& is) {
 			else if (identifier == "y_1_2")
 				emplace_back<StandardOperation>(nqubits, target, RY, PI_2);
 			else {
-				throw QFRException("[grcs parser] unknown gate '" + identifier + "'");
+				std::cout << line << "!" << std::endl;
+				throw QFRException("[grcs parser] unknown gate: '" + identifier + "' for cycle: '" + std::to_string(cycle) + "'");
 			}
 		}
 	}
