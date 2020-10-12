@@ -91,12 +91,12 @@ namespace qc {
 	public:
 		QuantumComputation() = default;
 		explicit QuantumComputation(unsigned short nqubits) {
-			addQubitRegister(nqubits);
-			addClassicalRegister(nqubits);
+			setQubits(nqubits);
 		}
 		explicit QuantumComputation(const std::string& filename) {
 			import(filename);
 		}
+
 		QuantumComputation(const QuantumComputation& qc) = delete;
 		QuantumComputation(QuantumComputation&& qc) noexcept = default;
 		QuantumComputation& operator=(const QuantumComputation& qc) = delete;
@@ -231,6 +231,11 @@ namespace qc {
 			ancregs.clear();
 			initialLayout.clear();
 			outputPermutation.clear();
+		}
+		
+		void setQubits(unsigned short nqubits) {
+			addQubitRegister(nqubits);
+			addClassicalRegister(nqubits);
 		}
 
 		/**
