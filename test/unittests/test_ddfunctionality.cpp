@@ -203,3 +203,99 @@ TEST_F(DDFunctionality, non_unitary) {
 		FAIL() << "Expected qc::QFRException";
 	}
 }
+
+TEST_F(DDFunctionality, GRCSExport) {
+	qc::QuantumComputation qc;
+    qc.import("circuits/grcs/inst_4x4_80_9_v2.txt");
+    e = qc.simulate(dd->makeZeroState(qc.getNqubits()), dd);
+
+    dd::serialize(e, "inst_4x4_80_9_v2_serialized.txt", true);
+    dd::Edge result = dd::deserialize(dd, "inst_4x4_80_9_v2_serialized.txt");
+    /*
+    bool success = dd->equals(e, result);
+    if(!success) {
+        unsigned short nqubits = qc.getNqubits();
+        std::map<std::string, dd::ComplexValue> result_amplitudes;
+        std::map<std::string, dd::ComplexValue> ref_amplitudes;
+
+        std::string elements(nqubits, '0');
+        dd->getAllAmplitudes(e, result_amplitudes, nqubits - 1, elements);
+        dd->getAllAmplitudes(result, ref_amplitudes, nqubits - 1, elements);
+        success = dd->compareAmplitudes(ref_amplitudes, result_amplitudes, false);
+    }
+    EXPECT_TRUE(success);
+    */
+    EXPECT_TRUE(dd->equals(e, result));
+}
+
+TEST_F(DDFunctionality, SupremacyExport) {
+    nqubits = 7;
+    qc::QuantumComputation quantumComputation(nqubits);
+    quantumComputation.emplace_back<qc::StandardOperation>(nqubits, 0, qc::H);
+    quantumComputation.emplace_back<qc::StandardOperation>(nqubits, 1, qc::H);
+    quantumComputation.emplace_back<qc::StandardOperation>(nqubits, 2, qc::H);
+    quantumComputation.emplace_back<qc::StandardOperation>(nqubits, 3, qc::H);
+    quantumComputation.emplace_back<qc::StandardOperation>(nqubits, 4, qc::H);
+    quantumComputation.emplace_back<qc::StandardOperation>(nqubits, 5, qc::H);
+    quantumComputation.emplace_back<qc::StandardOperation>(nqubits, 6, qc::H);
+
+    quantumComputation.emplace_back<qc::StandardOperation>(nqubits, 0, qc::T);
+    quantumComputation.emplace_back<qc::StandardOperation>(nqubits, 1, qc::T);
+    quantumComputation.emplace_back<qc::StandardOperation>(nqubits, 2, qc::T);
+    quantumComputation.emplace_back<qc::StandardOperation>(nqubits, 3, qc::T);
+
+    quantumComputation.emplace_back<qc::StandardOperation>(nqubits, qc::Control(4), 5, qc::Z);
+    quantumComputation.emplace_back<qc::StandardOperation>(nqubits, qc::Control(6), 2, qc::Z);
+
+    quantumComputation.emplace_back<qc::StandardOperation>(nqubits, 3, qc::RX, qc::PI_2);
+    quantumComputation.emplace_back<qc::StandardOperation>(nqubits, qc::Control(0), 1, qc::Z);
+    quantumComputation.emplace_back<qc::StandardOperation>(nqubits, 2, qc::RX, qc::PI_2);
+    quantumComputation.emplace_back<qc::StandardOperation>(nqubits, 4, qc::RY, qc::PI_2);
+
+    
+    quantumComputation.emplace_back<qc::StandardOperation>(nqubits, 5, qc::T);
+    quantumComputation.emplace_back<qc::StandardOperation>(nqubits, 6, qc::RX, qc::PI_2);
+    quantumComputation.emplace_back<qc::StandardOperation>(nqubits, 0, qc::RY, qc::PI_2);
+
+    quantumComputation.emplace_back<qc::StandardOperation>(nqubits, qc::Control(4), 1, qc::Z);
+    quantumComputation.emplace_back<qc::StandardOperation>(nqubits, 4, qc::RY, qc::PI_2);
+    quantumComputation.emplace_back<qc::StandardOperation>(nqubits, 5, qc::RY, qc::PI_2);
+    quantumComputation.emplace_back<qc::StandardOperation>(nqubits, 6, qc::RY, qc::PI_2);
+    quantumComputation.emplace_back<qc::StandardOperation>(nqubits, 4, qc::T, qc::PI_2);
+    quantumComputation.emplace_back<qc::StandardOperation>(nqubits, 5, qc::T, qc::PI_2);
+    quantumComputation.emplace_back<qc::StandardOperation>(nqubits, 6, qc::T, qc::PI_2);
+    
+    e = quantumComputation.simulate(dd->makeZeroState(quantumComputation.getNqubits()), dd);
+
+    dd::serialize(e, "SupremacyExport.txt", true);
+    dd->export2Dot(e, "SupremacyExport_orig", true);
+    dd::Edge result = dd::deserialize(dd, "SupremacyExport.txt");
+    dd->export2Dot(result, "SupremacyExport_deserialized", true);
+    
+    EXPECT_TRUE(dd->equals(e, result));
+    
+    /*
+    std::string test = "3 2 (2 0.7071067811865476) () (2 0.90i) ()";		
+	std::string complex_real_regex = "([+-]?(?:\\d+(?:\\.\\d*)?|\\.\\d+)(?:[eE][+-]?\\d+)?(?![ \\d\\.]*(?:[eE][+-])?\\d*[iI]))?";
+    std::string complex_imag_regex = "( ?[+-]? ?(?:(?:\\d+(?:\\.\\d*)?|\\.\\d+)(?:[eE][+-]?\\d+)?)?[iI])?";
+    std::string edge_regex = " \\(((-?\\d+) (" + complex_real_regex + complex_imag_regex + "))?\\)";
+	std::regex complex_weight_regex (complex_real_regex + complex_imag_regex);
+    std::regex line_regex ("(\\d+) (\\d+)(?:" + edge_regex + ")(?:" + edge_regex + ")(?:" + edge_regex + ")(?:" + edge_regex + ") *(?:#.*)?");
+    std::smatch m;
+    
+    if(!std::regex_match(test, m, line_regex)) {
+		std::cerr << "Regex did not match" << std::endl;
+    } else {
+		std::cerr << "Regex did match" << std::endl;
+        for(int edge_idx = 3, i = 0; i < dd::NEDGE; i++, edge_idx += 5) {
+				if(m.str(edge_idx).empty()) {
+					// std::cout << "index " << i << " is empty " << std::endl;
+					continue;
+				}
+
+                std::cout << "real " << m.str(edge_idx + 3) << std::endl;
+                std::cout << "imag " << m.str(edge_idx + 4) << std::endl;
+			}
+    }
+    */
+}
