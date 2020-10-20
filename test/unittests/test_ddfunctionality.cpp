@@ -203,7 +203,7 @@ TEST_F(DDFunctionality, non_unitary) {
 		FAIL() << "Expected qc::QFRException";
 	}
 }
-
+ 
 TEST_F(DDFunctionality, GRCSExport) {
 	qc::QuantumComputation qc;
     qc.import("circuits/grcs/inst_4x4_80_9_v2.txt");
