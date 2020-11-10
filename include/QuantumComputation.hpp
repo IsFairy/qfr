@@ -238,6 +238,10 @@ namespace qc {
 			addClassicalRegister(nqubits);
 		}
 
+		std::unique_ptr<Operation>& getOp(unsigned int idx) {
+			return ops.at(idx);
+		}
+		
 		/**
 		 * Pass-Through
 		 */
