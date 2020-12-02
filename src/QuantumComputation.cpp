@@ -62,17 +62,6 @@ namespace qc {
 			case OpenQASM:
 				updateMaxControls(2);
 				importOpenQASM(is);
-				// try to parse initial layout from qasm file
-				is.clear();
-				is.seekg(0, std::ios::beg);
-				if (!lookForOpenQASM_IO_Layout(is)) {
-					for (unsigned short i = 0; i < nqubits; ++i) {
-						initialLayout.insert({ i, i});
-						// only add to output permutation if the qubit is actually acted upon
-						if (!isIdleQubit(i))
-							outputPermutation.insert({ i, i});
-					}
-				}
 				break;
 			case GRCS:
 				importGRCS(is);
@@ -85,6 +74,23 @@ namespace qc {
 				break;
 			default:
 				throw QFRException("[import] Format " + std::to_string(format) + " not yet supported");
+		}
+
+		// try to parse initial layout from file
+		is.clear();
+		is.seekg(0, std::ios::beg);
+		lookForIOInformation(is);
+		if (initialLayout.empty()) {
+			for (unsigned short i = 0; i < nqubits; ++i)
+				initialLayout.insert({ i, i});
+		}
+
+		if (outputPermutation.empty()) {
+			for (unsigned short i = 0; i < nqubits; ++i) {
+				// only add to output permutation if the qubit is actually acted upon
+				if (!isIdleQubit(i))
+					outputPermutation.insert({ i, initialLayout.at(i)});
+			}
 		}
 	}
 
@@ -293,19 +299,20 @@ namespace qc {
 		}
 
 		// update all operations
+		auto totalQubits = static_cast<unsigned short>(nqubits+nancillae);
 		for (auto& op:ops) {
-			op->setNqubits(nqubits + nancillae);
+			op->setNqubits(totalQubits);
 		}
 
 		// update ancillary and garbage tracking
-		if (nqubits+nancillae < qc::MAX_QUBITS) {
-			for (unsigned short i=logical_qubit_index; i<nqubits+nancillae; ++i) {
+		if (totalQubits < qc::MAX_QUBITS) {
+			for (unsigned short i=logical_qubit_index; i<totalQubits; ++i) {
 				ancillary[i] = ancillary[i+1];
 				garbage[i] = garbage[i+1];
 			}
 			// unset last entry
-			ancillary.reset(nqubits+nancillae);
-			garbage.reset(nqubits+nancillae);
+			ancillary.reset(totalQubits);
+			garbage.reset(totalQubits);
 		}
 
 		return { physical_qubit_index, output_qubit_index};
@@ -981,7 +988,7 @@ dd::Edge QuantumComputation::reduceAncillae(dd::Edge& e, std::unique_ptr<dd::Pac
 		create_reg_array(cregs, cregnames, nclassics, DEFAULT_CREG);
 		create_reg_array(ancregs, ancregnames, nancillae, DEFAULT_ANCREG);
 
-		for (auto& ancregname: ancregnames)
+		for (const auto& ancregname: ancregnames)
 			qregnames.push_back(ancregname);
 
 		for (const auto& op: ops) {
@@ -996,7 +1003,7 @@ dd::Edge QuantumComputation::reduceAncillae(dd::Edge& e, std::unique_ptr<dd::Pac
 			sortedRegs.insert({reg.second.first, reg});
 		}
 
-		for (auto const& reg : sortedRegs) {
+		for (const auto& reg : sortedRegs) {
 			of << identifier << " " << reg.second.first << "[" << reg.second.second.second << "];" << std::endl;
 		}
 	}
@@ -1046,7 +1053,7 @@ dd::Edge QuantumComputation::reduceAncillae(dd::Edge& e, std::unique_ptr<dd::Pac
 				} else if (totalQubits <= 20) {
 					of << "FakeBoeblingen";
 					narchitecture = 20;
-				} else if (totalQubits <= 53) {
+				} else {
 					of << "FakeRochester";
 					narchitecture = 53;
 				}
@@ -1085,7 +1092,7 @@ dd::Edge QuantumComputation::reduceAncillae(dd::Edge& e, std::unique_ptr<dd::Pac
 				create_reg_array({}, cregnames, nclassics, DEFAULT_CREG);
 				create_reg_array({}, ancregnames, nancillae, DEFAULT_ANCREG);
 
-				for (auto& ancregname: ancregnames)
+				for (const auto& ancregname: ancregnames)
 					qregnames.push_back(ancregname);
 
 				for (const auto& op: ops) {
@@ -1099,7 +1106,7 @@ dd::Edge QuantumComputation::reduceAncillae(dd::Edge& e, std::unique_ptr<dd::Pac
 					of << "FakeBurlington";
 				} else if (totalQubits <= 20) {
 					of << "FakeBoeblingen";
-				} else if (totalQubits <= 53) {
+				} else {
 					of << "FakeRochester";
 				}
 				of << "(), optimization_level=1)" << std::endl << std::endl;
@@ -1147,7 +1154,7 @@ dd::Edge QuantumComputation::reduceAncillae(dd::Edge& e, std::unique_ptr<dd::Pac
 		return true;
 	}
 
-	void QuantumComputation::stripIdleQubits(bool force) {
+	void QuantumComputation::stripIdleQubits(bool force, bool reduceIOpermutations) {
 		auto layout_copy = initialLayout;
 		for (auto physical_qubit_it = layout_copy.rbegin(); physical_qubit_it != layout_copy.rend(); ++physical_qubit_it) {
 			auto physical_qubit_index = physical_qubit_it->first;
@@ -1166,7 +1173,7 @@ dd::Edge QuantumComputation::reduceAncillae(dd::Edge& e, std::unique_ptr<dd::Pac
 				#endif
 				removeQubit(logical_qubit_index);
 
-				if (logical_qubit_index < nqubits+nancillae) {
+				if (reduceIOpermutations && (logical_qubit_index < nqubits+nancillae)) {
 					#if DEBUG_MODE_QC
 					std::cout << "Qubit " << logical_qubit_index << " is inner qubit. Need to adjust permutations." << std::endl;
 					#endif
@@ -1356,7 +1363,8 @@ dd::Edge QuantumComputation::reduceAncillae(dd::Edge& e, std::unique_ptr<dd::Pac
 		return os;
 	}
 
-	bool QuantumComputation::lookForOpenQASM_IO_Layout(std::istream& ifs) {
+	bool QuantumComputation::lookForIOInformation(std::istream& ifs) {
+		bool foundInitialLayout = false;
 		std::string line;
 		while (std::getline(ifs,line)) {
 			/*
@@ -1374,6 +1382,7 @@ dd::Edge QuantumComputation::reduceAncillae(dd::Edge& e, std::unique_ptr<dd::Pac
 						if (!(ss >> physical_qubit)) return false;
 						initialLayout.insert({physical_qubit, logical_qubit});
 					}
+					foundInitialLayout = true;
 				} else if (line.find('o') != std::string::npos) {
 					unsigned short physical_qubit = 0;
 					auto ss = std::stringstream(line.substr(4));
@@ -1401,7 +1410,7 @@ dd::Edge QuantumComputation::reduceAncillae(dd::Edge& e, std::unique_ptr<dd::Pac
 				}
 			}
 		}
-		return false;
+		return foundInitialLayout;
 	}
 
 	unsigned short QuantumComputation::getHighestLogicalQubitIndex(const permutationMap& map) {
