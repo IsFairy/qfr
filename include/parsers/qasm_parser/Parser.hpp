@@ -13,6 +13,7 @@
 #include <iostream>
 #include <stdexcept>
 #include <sstream>
+#include <regex>
 
 #include "Scanner.hpp"
 #include "operations/StandardOperation.hpp"
@@ -23,6 +24,7 @@ namespace qasm {
 	static constexpr long double PI = 3.14159265358979323846264338327950288419716939937510L;
 
 	using registerMap = std::map<std::string, std::pair<unsigned short, unsigned short>, std::greater<>>;
+	using permutationMap = std::map<unsigned short, unsigned short>;
 
 	class QASMParserException : public std::invalid_argument {
 		std::string msg;
@@ -128,6 +130,13 @@ namespace qasm {
 			CXgate(std::string  control, std::string  target) : control(std::move(control)), target(std::move(target)) { }
 		};
 
+		struct SWAPgate : public BasisGate {
+			std::string target0;
+			std::string target1;
+
+			SWAPgate(std::string target0, std::string target1) : target0(std::move(target0)), target1(std::move(target1)) { }
+		};
+
 		struct MCXgate : public BasisGate {
 			std::vector<std::string> controls;
 			std::string target;
@@ -159,6 +168,9 @@ namespace qasm {
 		registerMap&   qregs;
 		registerMap&   cregs;
 		unsigned short nqubits = 0;
+		unsigned short nclassics = 0;
+		permutationMap initialLayout{ };
+		permutationMap outputPermutation{ };
 
 		explicit Parser(std::istream& is, registerMap& qregs, registerMap& cregs) :in(is), qregs(qregs), cregs(cregs) {
 			scanner = new Scanner(in);
@@ -199,6 +211,15 @@ namespace qasm {
 			oss << "l:" << t.line << " c:" << t.col << " msg: " << msg;
 			throw QASMParserException(oss.str());
 		}
+
+		void handleComment();
+		// check string for I/O layout information of the form
+		//      'i Q_i Q_j ... Q_k' meaning, e.g. q_0 is mapped to Q_i, q_1 to Q_j, etc.
+		//      'o Q_i Q_j ... Q_k' meaning, e.g. q_0 is found at Q_i, q_1 at Q_j, etc.
+		// where i describes the initial layout, e.g. 'i 2 1 0' means q0 -> Q2, q1 -> Q1, q2 -> Q0
+		// and o describes the output permutation, e.g. 'o 2 1 0' means  q0 is expected at Q2, q1 at Q1, and q2 at Q0
+		static permutationMap checkForInitialLayout(std::string comment);
+		static permutationMap checkForOutputPermutation(std::string comment);
 	};
 
 }

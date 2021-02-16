@@ -16,6 +16,13 @@ namespace qc {
 		for (const auto& qubit: qubitRegister)
 			controls.emplace_back(qubit);
 	}
+	NonUnitaryOperation::NonUnitaryOperation(unsigned short nq, unsigned short qubit, unsigned short clbit) {
+		type = Measure;
+		nqubits = nq;
+		controls.emplace_back(qubit);
+		targets.emplace_back(clbit);
+		Operation::setName();
+	}
 
 	// Snapshot constructor
 	NonUnitaryOperation::NonUnitaryOperation(const unsigned short nq, const std::vector<unsigned short>& qubitRegister, int n) 
@@ -216,7 +223,7 @@ namespace qc {
 		}
 	}
 
-	dd::Edge NonUnitaryOperation::getDD(std::unique_ptr<dd::Package>& dd, std::array<short, MAX_QUBITS>& line) const {
+	dd::Edge NonUnitaryOperation::getDD(std::unique_ptr<dd::Package>& dd, [[maybe_unused]] std::array<short, MAX_QUBITS>& line) const {
 		// these operations do not alter the current state
 		if (type == ShowProbabilities || type == Barrier || type == Snapshot) {
 			return dd->makeIdent(0, static_cast<short>(nqubits-1));
@@ -225,7 +232,7 @@ namespace qc {
 		throw QFRException("DD for non-unitary operation not available!");
 	}
 
-	dd::Edge NonUnitaryOperation::getDD(std::unique_ptr<dd::Package>& dd, std::array<short, MAX_QUBITS>& line, std::map<unsigned short, unsigned short>& perm) const {
+	dd::Edge NonUnitaryOperation::getDD(std::unique_ptr<dd::Package>& dd, [[maybe_unused]] std::array<short, MAX_QUBITS>& line, [[maybe_unused]] std::map<unsigned short, unsigned short>& perm) const {
 		// these operations do not alter the current state
 		if (type == ShowProbabilities || type == Barrier || type == Snapshot) {
 			return dd->makeIdent(0, static_cast<short>(nqubits-1));
@@ -234,7 +241,7 @@ namespace qc {
 		throw QFRException("DD for non-unitary operation not available!");
 	}
 
-	dd::Edge NonUnitaryOperation::getInverseDD(std::unique_ptr<dd::Package>& dd, std::array<short, MAX_QUBITS>& line ) const {
+	dd::Edge NonUnitaryOperation::getInverseDD(std::unique_ptr<dd::Package>& dd, [[maybe_unused]] std::array<short, MAX_QUBITS>& line ) const {
 		// these operations do not alter the current state
 		if (type == ShowProbabilities || type == Barrier || type == Snapshot) {
 			return dd->makeIdent(0, static_cast<short>(nqubits-1));
@@ -244,18 +251,17 @@ namespace qc {
 	}
 
 	bool NonUnitaryOperation::actsOn(unsigned short i) {
-		return false; // non-unitary operations on idle qubits may be ignored. as such they do not "act" on the qubits
-//		if (type != Measure) {
-//			for (const auto t:targets) {
-//				if (t == i)
-//					return true;
-//			}
-//		} else {
-//			for (const auto c:controls) {
-//				if (c.qubit == i)
-//					return true;
-//			}
-//		}
-//		return false;
+		if (type == Measure) {
+			for (const auto& c:controls) {
+				if (c.qubit == i)
+					return true;
+			}
+		} else if (type == Reset) {
+			for (const auto& t:targets) {
+				if (t == i)
+					return true;
+			}
+		}
+		return false; // other non-unitary operations (e.g., barrier statements) may be ignored
 	}
 }

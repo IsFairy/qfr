@@ -9,6 +9,7 @@
 namespace qc {
 	QFT::QFT(unsigned short nq) {
         nqubits = nq;
+        name = "qft_" + std::to_string(nq);
         for (unsigned short i = 0; i < nqubits; ++i) {
         	initialLayout.insert({i, i});
         	outputPermutation.insert({i, nqubits - 1 - i});
@@ -26,7 +27,7 @@ namespace qc {
                 } else if (j == 2) {
                     emplace_back<StandardOperation>(nqubits, Control(i+2), i, T);
                 } else {
-                    emplace_back<StandardOperation>(nqubits, Control(i+j), i, RZ, lambda);
+                    emplace_back<StandardOperation>(nqubits, Control(i+j), i, Phase, lambda);
                 }
             }
         }

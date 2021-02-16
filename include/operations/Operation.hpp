@@ -65,7 +65,7 @@ namespace qc {
 	enum OpType {
 		None,
 		// Standard Operations
-		I, H, X, Y, Z, S, Sdag, T, Tdag, V, Vdag, U3, U2, U1, RX, RY, RZ, SWAP, iSWAP, P, Pdag,
+		I, H, X, Y, Z, S, Sdag, T, Tdag, V, Vdag, U3, U2, Phase, SX, SXdag, RX, RY, RZ, SWAP, iSWAP, Peres, Peresdag,
 		// Compound Operation
 		Compound,
 		// Non Unitary Operations
@@ -97,10 +97,10 @@ namespace qc {
 			{ "rz",  RZ   },
 			{ "f",   SWAP },
 			{ "if",  SWAP },
-			{ "p",   P    },
-			{ "pi",  Pdag },
-			{ "p+",  Pdag },
-			{ "q",   RZ   },
+			{ "p",   Peres},
+			{ "pi",  Peresdag },
+			{ "p+",  Peresdag },
+			{ "q",   Phase},
 			{ "t",   T    },
 			{ "tdg", Tdag }
 	};
@@ -221,8 +221,14 @@ namespace qc {
 		// The methods with a permutation parameter apply these operations according to the mapping specified by the permutation, e.g.
 		//      if perm[0] = 1 and perm[1] = 0
 		//      then cx 0 1 will be translated to cx perm[0] perm[1] == cx 1 0
-		void setLine(std::array<short, MAX_QUBITS>& line, const std::map<unsigned short, unsigned short>& permutation = standardPermutation) const;
-		void resetLine(std::array<short, MAX_QUBITS>& line, const std::map<unsigned short, unsigned short>& permutation = standardPermutation) const;
+		virtual void setLine(std::array<short, MAX_QUBITS>& line, const std::map<unsigned short, unsigned short>& permutation) const;
+		void setLine(std::array<short, MAX_QUBITS>& line) const {
+			setLine(line, standardPermutation);
+		}
+		virtual void resetLine(std::array<short, MAX_QUBITS>& line, const std::map<unsigned short, unsigned short>& permutation) const;
+		void resetLine(std::array<short, MAX_QUBITS>& line) const {
+			resetLine(line, standardPermutation);
+		}
 
 		virtual dd::Edge getDD(std::unique_ptr<dd::Package>& dd, std::array<short, MAX_QUBITS>& line) const = 0;
 		virtual dd::Edge getDD(std::unique_ptr<dd::Package>& dd, std::array<short, MAX_QUBITS>& line, std::map<unsigned short, unsigned short>& permutation) const = 0;

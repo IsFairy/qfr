@@ -44,7 +44,8 @@ void qc::QuantumComputation::importOpenQASM(std::istream& is) {
 			p.check(Token::Kind::semicolon);
 			p.cregs[s] = std::make_pair(nclassics, n);
 			nclassics += n;
-		} else if (p.sym == Token::Kind::ugate || p.sym == Token::Kind::cxgate || p.sym == Token::Kind::swap || p.sym == Token::Kind::identifier || p.sym == Token::Kind::measure || p.sym == Token::Kind::reset) {
+			p.nclassics = nclassics;
+		} else if (p.sym == Token::Kind::ugate || p.sym == Token::Kind::cxgate || p.sym == Token::Kind::swap || p.sym == Token::Kind::identifier || p.sym == Token::Kind::measure || p.sym == Token::Kind::reset || p.sym == Token::Kind::mcx_gray || p.sym == Token::Kind::mcx_recursive || p.sym == Token::Kind::mcx_vchain) {
 			ops.emplace_back(p.Qop());
 		} else if (p.sym == Token::Kind::gate) {
 			p.GateDecl();
@@ -113,8 +114,17 @@ void qc::QuantumComputation::importOpenQASM(std::istream& is) {
 			emplace_back<NonUnitaryOperation>(nqubits);
 			p.scan();
 			p.check(Token::Kind::semicolon);
+		} else if (p.sym == Token::Kind::comment) {
+			p.scan();
+			p.handleComment();
 		} else {
 			p.error("Unexpected statement: started with " + KindNames[p.sym] + "!");
 		}
 	} while (p.sym != Token::Kind::eof);
+
+	// if any I/O information was gathered during parsing, transfer it to the QuantumComputation
+	if (!p.initialLayout.empty())
+		initialLayout = std::move(p.initialLayout);
+	if (!p.outputPermutation.empty())
+		outputPermutation = std::move(p.outputPermutation);
 }

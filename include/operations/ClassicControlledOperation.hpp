@@ -18,7 +18,7 @@ namespace qc {
 	public:
 
 		// Applies operation `_op` if the creg starting at index `control` has the expected value
-		ClassicControlledOperation(std::unique_ptr<Operation>& _op, std::pair<unsigned short, unsigned short>& controlRegister, unsigned int expectedValue = 1u) : op(std::move(_op)), controlRegister(controlRegister), expectedValue(expectedValue) {
+		ClassicControlledOperation(std::unique_ptr<Operation>& _op, const std::pair<unsigned short, unsigned short>& controlRegister, unsigned int expectedValue = 1u) : op(std::move(_op)), controlRegister(controlRegister), expectedValue(expectedValue) {
 			nqubits = op->getNqubits();
 			name[0] = 'c';
 			name[1] = '_';
@@ -63,6 +63,18 @@ namespace qc {
 
 		bool isClassicControlledOperation() const override {
 			return true;
+		}
+
+		bool actsOn(unsigned short i) override {
+			return op->actsOn(i);
+		}
+
+		void setLine(std::array<short, MAX_QUBITS>& line, const std::map<unsigned short, unsigned short>& permutation) const override {
+			op->setLine(line, permutation);
+		}
+
+		void resetLine(std::array<short, MAX_QUBITS>& line, const std::map<unsigned short, unsigned short>& permutation) const override {
+			op->resetLine(line, permutation);
 		}
 
 		void dumpOpenQASM(std::ostream& of, const regnames_t& qreg, const regnames_t& creg) const override {

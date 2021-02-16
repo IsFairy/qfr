@@ -239,8 +239,59 @@
         return new Expr(expr->kind, expr->num, op1, op2, expr->id);
     }
 
+	void Parser::handleComment() {
+//    	std::cout << "Encountered comment: " << t.str << std::endl;
 
+        // check if this comment provides any I/O mapping information
+        auto&& initial = checkForInitialLayout(t.str);
+		if (!initial.empty()) {
+			if (!initialLayout.empty()) {
+				error("Multiple initial layout specifications found.");
+			} else {
+				initialLayout = initial;
+			}
+		}
+        auto&& output = checkForOutputPermutation(t.str);
+		if (!output.empty()) {
+			if (!outputPermutation.empty()) {
+				error("Multiple output permutation specifications found.");
+			} else {
+				outputPermutation = output;
+			}
+		}
+    }
 
+	permutationMap Parser::checkForInitialLayout(std::string comment) {
+		static auto initialLayoutRegex = std::regex("i (\\d+ )*(\\d+)");
+		static auto qubitRegex = std::regex("\\d+");
+    	permutationMap initial{};
+		if (std::regex_search(comment, initialLayoutRegex)) {
+			unsigned short logical_qubit = 0;
+			for (std::smatch m; std::regex_search(comment, m, qubitRegex); comment = m.suffix()) {
+				unsigned short physical_qubit = static_cast<unsigned short>(std::stoul(m.str()));
+//				std::cout << "Inserting " << physical_qubit << "->" << logical_qubit << std::endl;
+				initial.insert({physical_qubit, logical_qubit});
+				++logical_qubit;
+			}
+		}
+		return initial;
+    }
+
+    permutationMap Parser::checkForOutputPermutation(std::string comment) {
+	    static auto outputPermutationRegex = std::regex("o (\\d+ )*(\\d+)");
+	    static auto qubitRegex = std::regex("\\d+");
+	    permutationMap output{};
+	    if (std::regex_search(comment, outputPermutationRegex)) {
+		    unsigned short logical_qubit = 0;
+		    for (std::smatch m; std::regex_search(comment, m, qubitRegex); comment = m.suffix()) {
+			    unsigned short physical_qubit = static_cast<unsigned short>(std::stoul(m.str()));
+//			    std::cout << "Inserting " << physical_qubit << "->" << logical_qubit << std::endl;
+			    output.insert({physical_qubit, logical_qubit});
+			    ++logical_qubit;
+		    }
+	    }
+		return output;
+    }
 
     /***
      * Public Methods
@@ -252,10 +303,16 @@
     }
 
     void Parser::check(Token::Kind expected) {
-        if (sym == expected)
+        while (sym == Token::Kind::comment) {
+	        scan();
+	        handleComment();
+        }
+
+    	if (sym == expected) {
             scan();
-        else
-	        error("Expected '" + qasm::KindNames[expected] + "' but found '" + qasm::KindNames[sym] + "' in line " + std::to_string(la.line) + ", column " + std::to_string(la.col));
+    	} else {
+        	error("Expected '" + qasm::KindNames[expected] + "' but found '" + qasm::KindNames[sym] + "' in line " + std::to_string(la.line) + ", column " + std::to_string(la.col));
+    	}
     }
 
 
@@ -341,6 +398,47 @@
                 gate.emplace_back<qc::StandardOperation>(nqubits, target.first + i, qc::U3, lambda->num, phi->num, theta->num);
             }
             return std::make_unique<qc::CompoundOperation>(std::move(gate));
+        } else if (sym == Token::Kind::mcx_gray || sym == Token::Kind::mcx_recursive || sym == Token::Kind::mcx_vchain) {
+        	auto type = sym;
+        	scan();
+        	std::vector<std::pair<unsigned short, unsigned short>> registers{};
+	        registers.emplace_back(ArgumentQreg());
+	        while (sym != Token::Kind::semicolon) {
+		        check(Token::Kind::comma);
+		        registers.emplace_back(ArgumentQreg());
+	        }
+	        scan();
+
+	        std::vector<qc::Control> qubits{ };
+	        for (const auto& reg: registers) {
+		        if (reg.second != 1) {
+		        	error("MCX for whole qubit registers not yet implemented");
+		        }
+
+		        if (std::count(registers.begin(), registers.end(), reg) > 1) {
+			        std::ostringstream oss{};
+			        oss <<"Duplicate qubit " << reg.first << " in mcx definition";
+			        error(oss.str());
+		        }
+
+		        qubits.emplace_back(reg.first);
+	        }
+
+	        // drop ancillaries since our library can natively work with MCTs
+	        if (type == Token::Kind::mcx_vchain) {
+		        // n controls, 1 target, n-2 ancillaries = 2n-1 qubits
+		        unsigned short ancillaries = (qubits.size() + 1) / 2 - 2;
+		        for (int i=0; i<ancillaries; ++i)
+		        	qubits.pop_back();
+	        } else if (type == Token::Kind::mcx_recursive) {
+	        	// 1 ancillary if more than 4 controls
+		        if (qubits.size() > 5) {
+		        	qubits.pop_back();
+		        }
+	        }
+	        auto target = qubits.back().qubit;
+	        qubits.pop_back();
+	        return std::make_unique<qc::StandardOperation>(nqubits, qubits, target);
         } else if (sym == Token::Kind::swap) {
         	scan();
         	auto first_target = ArgumentQreg();
@@ -671,6 +769,32 @@
 
 	                    if (argMap.at(cu->target).second == 1) {
 		                    op.emplace_back<qc::StandardOperation>(nqubits, controls, argMap.at(cu->target).first, qc::U3, lambda->num, phi->num, theta->num);
+	                    } else if (auto sw = dynamic_cast<SWAPgate*>(gate)) {
+		                    // valid check
+		                    for (int i=0; i<argMap.at(sw->target0).second; ++i) {
+			                    for (int j=0; j<argMap.at(sw->target1).second; ++j) {
+				                    if (argMap.at(sw->target0).first+i == argMap.at(sw->target1).first+j) {
+					                    std::ostringstream oss{};
+					                    oss <<"Qubit " << argMap.at(sw->target0).first+i << " cannot be swap target twice";
+					                    error(oss.str());
+				                    }
+			                    }
+		                    }
+		                    if (argMap.at(sw->target0).second == 1 && argMap.at(sw->target1).second == 1) {
+			                    op.emplace_back<qc::StandardOperation>(nqubits, std::vector<qc::Control>{ }, argMap.at(sw->target1).first, argMap.at(sw->target1).first, qc::SWAP);
+		                    } else if (argMap.at(sw->target0).second == argMap.at(sw->target1).second) {
+			                    for (unsigned short j = 0; j < argMap.at(sw->target1).second; ++j)
+				                    op.emplace_back<qc::StandardOperation>(nqubits, std::vector<qc::Control>{ }, argMap.at(sw->target0).first + j, argMap.at(sw->target1).first + j, qc::SWAP);
+		                    } else if (argMap.at(sw->target0).second == 1) {
+			                    // TODO: multiple targets could be useful here
+			                    for (unsigned short k = 0; k < argMap.at(sw->target1).second; ++k)
+				                    op.emplace_back<qc::StandardOperation>(nqubits, std::vector<qc::Control>{ }, argMap.at(sw->target0).first, argMap.at(sw->target1).first + k, qc::SWAP);
+		                    } else if (argMap.at(sw->target1).second == 1) {
+			                    for (unsigned short l = 0; l < argMap.at(sw->target0).second; ++l)
+				                    op.emplace_back<qc::StandardOperation>(nqubits, std::vector<qc::Control>{ }, argMap.at(sw->target0).first + l, argMap.at(sw->target1).first, qc::SWAP);
+		                    } else {
+			                    error("Register size does not match for SWAP gate!");
+		                    }
 	                    } else {
 		                    error("Multi-controlled gates with whole qubit registers not supported");
 	                    }
@@ -759,6 +883,43 @@
                 gate.gates.push_back(new CXgate(control, t.str));
                 check(Token::Kind::semicolon);
 
+            } else if (sym == Token::Kind::swap) {
+            	scan();
+	            check(Token::Kind::identifier);
+	            auto target0 = t.str;
+	            check(Token::Kind::comma);
+	            check(Token::Kind::identifier);
+	            auto target1 = t.str;
+	            gate.gates.push_back(new SWAPgate(target0, target1));
+	            check(Token::Kind::semicolon);
+            } else if (sym == Token::Kind::mcx_gray || sym == Token::Kind::mcx_recursive || sym == Token::Kind::mcx_vchain) {
+	            auto type = sym;
+	            scan();
+	            std::vector<std::string> arguments{};
+	            check(Token::Kind::identifier);
+				arguments.emplace_back(t.str);
+	            while (sym != Token::Kind::semicolon) {
+		            check(Token::Kind::comma);
+		            check(Token::Kind::identifier);
+		            arguments.emplace_back(t.str);
+	            }
+	            scan();
+
+	            // drop ancillaries since our library can natively work with MCTs
+	            if (type == Token::Kind::mcx_vchain) {
+		            unsigned short ancillaries = (arguments.size() + 1) / 2 - 2;
+		            for (int i=0; i<ancillaries; ++i)
+			            arguments.pop_back();
+	            } else if (type == Token::Kind::mcx_recursive) {
+		            // 1 ancillary if more than 4 controls
+		            if (arguments.size() > 5) {
+			            arguments.pop_back();
+		            }
+	            }
+
+	            auto target = arguments.back();
+	            arguments.pop_back();
+	            gate.gates.push_back(new MCXgate(arguments, target));
             } else if (sym == Token::Kind::identifier) {
                 scan();
                 std::string name = t.str;
@@ -881,6 +1042,9 @@
                 IdList(arguments);
                 check(Token::Kind::semicolon);
                 //Nothing to do here for the simulator
+            } else if (sym == Token::Kind::comment) {
+	            scan();
+	            handleComment();
             } else {
 	            error("Error in gate declaration!");
             }
@@ -890,7 +1054,9 @@
     }
 
     std::unique_ptr<qc::Operation> Parser::Qop() {
-        if (sym == Token::Kind::ugate || sym == Token::Kind::cxgate || sym == Token::Kind::swap || sym == Token::Kind::identifier)
+        if (sym == Token::Kind::ugate || sym == Token::Kind::cxgate ||
+            sym == Token::Kind::swap || sym == Token::Kind::identifier ||
+            sym == Token::Kind::mcx_gray || sym == Token::Kind::mcx_recursive || sym == Token::Kind::mcx_vchain)
             return Gate();
         else if (sym == Token::Kind::measure) {
             scan();
@@ -903,8 +1069,20 @@
             if (qreg.second == creg.second) {
                 std::vector<unsigned short> qubits, classics;
                 for (int i = 0; i < qreg.second; ++i) {
-                    qubits.emplace_back(qreg.first + i);
-                    classics.emplace_back(creg.first + i);
+	                unsigned short qubit = qreg.first+i;
+	                unsigned short clbit = creg.first+i;
+	                if (qubit >= nqubits) {
+	                	std::stringstream ss{};
+	                	ss << "Qubit " << qubit << " cannot be measured since the circuit only contains " << nqubits << " qubits";
+	                	error(ss.str());
+	                }
+	                if (clbit >= nclassics) {
+		                std::stringstream ss{};
+		                ss << "Bit " << clbit << " cannot be target of a measurement since the circuit only contains " << nclassics << " classical bits";
+		                error(ss.str());
+	                }
+	                qubits.emplace_back(qubit);
+                    classics.emplace_back(clbit);
                 }
                 return std::make_unique<qc::NonUnitaryOperation>(nqubits, qubits, classics);
             } else {
@@ -917,7 +1095,13 @@
 
             std::vector<unsigned short> qubits;
             for (int i = 0; i < qreg.second; ++i) {
-                qubits.emplace_back(qreg.first + i);
+	            unsigned short qubit = qreg.first+i;
+	            if (qubit >= nqubits) {
+		            std::stringstream ss{};
+		            ss << "Qubit " << qubit << " cannot be reset since the circuit only contains " << nqubits << " qubits";
+		            error(ss.str());
+	            }
+                qubits.emplace_back(qubit);
             }
             return std::make_unique<qc::NonUnitaryOperation>(nqubits, qubits);
         } else {

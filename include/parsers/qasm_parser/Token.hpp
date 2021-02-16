@@ -58,9 +58,13 @@ namespace qasm {
 			snapshot,
 			swap,
 			ugate,
-			cxgate
+			cxgate,
+			mcx_gray,
+			mcx_recursive,
+			mcx_vchain,
+			comment
 		};
-		
+
 		Kind        kind    = Kind::none;
 		int         line    = 0;
 		int         col     = 0;
@@ -97,6 +101,9 @@ namespace qasm {
 			{ Token::Kind::cxgate,        "CX" },
 			{ Token::Kind::swap,          "swap" },
 			{ Token::Kind::gate,          "gate" },
+			{ Token::Kind::mcx_gray,      "mcx_gray"},
+			{ Token::Kind::mcx_recursive, "mcx_recursive"},
+			{ Token::Kind::mcx_vchain,    "mcx_vchain"},
 			{ Token::Kind::pi,            "pi" },
 			{ Token::Kind::measure,       "measure" },
 			{ Token::Kind::openqasm,      "openqasm" },
@@ -115,7 +122,8 @@ namespace qasm {
 			{ Token::Kind::barrier,       "barrier" },
 			{ Token::Kind::_if,           "if" },
 			{ Token::Kind::eq,            "==" },
-			{ Token::Kind::reset,         "reset" }
+			{ Token::Kind::reset,         "reset" },
+			{ Token::Kind::comment,       "//"}
 	};
 
 }

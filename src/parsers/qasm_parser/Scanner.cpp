@@ -96,10 +96,14 @@ namespace qasm {
         t.kind = Token::Kind::string;
     }
 
-    void Scanner::skipComment() {
-        while (ch != '\n' && ch != (char) -1) {
-            nextCh();
+    void Scanner::readComment(Token& t) {
+	    std::stringstream ss;
+	    while (ch != '\n' && ch != (char) -1) {
+            ss << ch;
+	    	nextCh();
         }
+        t.str = ss.str();
+        t.kind = Token::Kind::comment;
     }
 
 
@@ -114,6 +118,11 @@ namespace qasm {
         keywords["U"]                  = Token::Kind::ugate;
         keywords["CX"]                 = Token::Kind::cxgate;
 	    keywords["swap"]               = Token::Kind::swap;
+	    keywords["mct"]                = Token::Kind::mcx_gray;
+	    keywords["mcx"]                = Token::Kind::mcx_gray;
+	    keywords["mcx_gray"]           = Token::Kind::mcx_gray;
+	    keywords["mcx_recursive"]      = Token::Kind::mcx_recursive;
+	    keywords["mcx_vchain"]         = Token::Kind::mcx_vchain;
 	    keywords["pi"]                 = Token::Kind::pi;
         keywords["OPENQASM"]           = Token::Kind::openqasm;
         keywords["show_probabilities"] = Token::Kind::probabilities;
@@ -242,8 +251,9 @@ namespace qasm {
                 break;
             case '/': nextCh();
                 if (ch == '/') {
-                    skipComment();
-                    t = next();
+                	nextCh();
+                	readComment(t);
+                    nextCh();
                 } else {
                     t.kind = Token::Kind::div;
                 }

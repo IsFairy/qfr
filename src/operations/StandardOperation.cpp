@@ -131,13 +131,13 @@ namespace qc {
 		checkInteger(lambda);
 		checkFractionPi(lambda);
 
-		return RZ;
+		return Phase;
 	}
 
 
 
 	void StandardOperation::checkUgate() {
-		if (type == U1) {
+		if (type == Phase) {
 			type = parseU1(parameter[0]);
 		} else if (type == U2) {
 			type = parseU2(parameter[0], parameter[1]);
@@ -170,7 +170,7 @@ namespace qc {
 		return e;
     }
 
-	dd::Edge StandardOperation::getPDD(std::unique_ptr<dd::Package>& dd, std::array<short, MAX_QUBITS>& line, const std::map<unsigned short, unsigned short>& permutation) const {
+	dd::Edge StandardOperation::getPeresDD(std::unique_ptr<dd::Package>& dd, std::array<short, MAX_QUBITS>& line, const std::map<unsigned short, unsigned short>& permutation) const {
 		dd::Edge e{ };
 
 		line[permutation.at(targets[1])] = LINE_CONTROL_POS;
@@ -184,7 +184,7 @@ namespace qc {
 		return e;
 	}
 
-	dd::Edge StandardOperation::getPdagDD(std::unique_ptr<dd::Package>& dd, std::array<short, MAX_QUBITS>& line, const std::map<unsigned short, unsigned short>& permutation) const {
+	dd::Edge StandardOperation::getPeresdagDD(std::unique_ptr<dd::Package>& dd, std::array<short, MAX_QUBITS>& line, const std::map<unsigned short, unsigned short>& permutation) const {
 		dd::Edge e{ };
 
 		line[permutation.at(targets[0])] = LINE_DEFAULT;
@@ -199,23 +199,20 @@ namespace qc {
     }
 
 	dd::Edge StandardOperation::getiSWAPDD(std::unique_ptr<dd::Package>& dd, std::array<short, MAX_QUBITS>& line, const std::map<unsigned short, unsigned short>& permutation) const {
-		// TODO: this can be simplified since H-CX-H == CZ
-
-    	dd::Edge e{ };
-
-		e = getSWAPDD(dd, line, permutation);
-
+		line[permutation.at(targets[0])] = LINE_DEFAULT;
+		dd::Edge e = dd->makeGateDD(Smat, nqubits, line); // S q[1]
 
 		line[permutation.at(targets[1])] = LINE_DEFAULT;
-		e = dd->multiply(e, dd->makeGateDD(Smat, start_qubit, nqubits, line));
-
-		line[permutation.at(targets[0])] = LINE_DEFAULT;
-		line[permutation.at(targets[1])] = LINE_TARGET;
-		e = dd->multiply(e, dd->makeGateDD(Smat, start_qubit, nqubits, line));
-		e = dd->multiply(e, dd->makeGateDD(Hmat, start_qubit, nqubits, line));
+		line[permutation.at(targets[0])] = LINE_TARGET;
+		e = dd->multiply(e, dd->makeGateDD(Smat, start_qubit, nqubits, line)); // S q[0]
+		e = dd->multiply(e, dd->makeGateDD(Hmat, start_qubit, nqubits, line)); // H q[0]
 
 		line[permutation.at(targets[0])] = LINE_CONTROL_POS;
-		e = dd->multiply(e, dd->makeGateDD(Xmat, start_qubit, nqubits, line));
+		line[permutation.at(targets[1])] = LINE_TARGET;
+		e = dd->multiply(e, dd->makeGateDD(Xmat, start_qubit, nqubits, line)); // CX q[0], q[1]
+		line[permutation.at(targets[1])] = LINE_CONTROL_POS;
+		line[permutation.at(targets[0])] = LINE_TARGET;
+		e = dd->multiply(e, dd->makeGateDD(Xmat, start_qubit, nqubits, line)); // CX q[1], q[0]
 
 		line[permutation.at(targets[0])] = LINE_DEFAULT;
 		e = dd->multiply(e, dd->makeGateDD(Hmat, start_qubit, nqubits, line));
@@ -225,26 +222,26 @@ namespace qc {
     }
 
 	dd::Edge StandardOperation::getiSWAPinvDD(std::unique_ptr<dd::Package>& dd, std::array<short, MAX_QUBITS>& line, const std::map<unsigned short, unsigned short>& permutation) const {
-		// TODO: this can be simplified since H-CX-H == CZ
-
-		dd::Edge e{ };
-
 		line[permutation.at(targets[0])] = LINE_DEFAULT;
-		e = dd->makeGateDD(Hmat, nqubits, line);
+		dd::Edge e = dd->makeGateDD(Hmat, nqubits, line); // H q[1]
 
-		line[permutation.at(targets[0])] = LINE_CONTROL_POS;
-		e = dd->multiply(e, dd->makeGateDD(Xmat, nqubits, line));
-
-		line[permutation.at(targets[0])] = LINE_DEFAULT;
-		e = dd->multiply(e, dd->makeGateDD(Hmat, nqubits, line));
-		e = dd->multiply(e, dd->makeGateDD(Sdagmat, nqubits, line));
-
+		line[permutation.at(targets[1])] = LINE_CONTROL_POS;
 		line[permutation.at(targets[0])] = LINE_TARGET;
+		e = dd->multiply(e, dd->makeGateDD(Xmat, nqubits, line)); // CX q[1], q[0]
+		line[permutation.at(targets[0])] = LINE_CONTROL_POS;
+		line[permutation.at(targets[1])] = LINE_TARGET;
+		e = dd->multiply(e, dd->makeGateDD(Xmat, nqubits, line)); // CX q[0], q[1]
+
 		line[permutation.at(targets[1])] = LINE_DEFAULT;
-		e = dd->multiply(e, dd->makeGateDD(Sdagmat, nqubits, line));
+		line[permutation.at(targets[0])] = LINE_TARGET;
+		e = dd->multiply(e, dd->makeGateDD(Hmat, nqubits, line)); // H q[0]
+		e = dd->multiply(e, dd->makeGateDD(Sdagmat, nqubits, line)); // Sdag q[0]
 
 		line[permutation.at(targets[1])] = LINE_TARGET;
-		e = dd->multiply(e, getSWAPDD(dd, line, permutation));
+		line[permutation.at(targets[0])] = LINE_DEFAULT;
+		e = dd->multiply(e, dd->makeGateDD(Sdagmat, nqubits, line)); // Sdag q[1]
+
+		line[permutation.at(targets[0])] = LINE_TARGET;
 
 		return e;
     }
@@ -278,7 +275,9 @@ namespace qc {
 			case Vdag: gm = inverse? Vmat: Vdagmat; break;
 			case U3:   gm = inverse? U3mat(-parameter[1], -parameter[0], -parameter[2]): U3mat(parameter[0], parameter[1], parameter[2]); break;
 			case U2:   gm = inverse? U2mat(-parameter[1]+PI, -parameter[0]-PI): U2mat(parameter[0], parameter[1]); break;
-			case U1:   gm = inverse? RZmat(-parameter[0]): RZmat(parameter[0]); break;
+			case Phase: gm = inverse ? Phasemat(-parameter[0]) : Phasemat(parameter[0]); break;
+			case SX:   gm = inverse? SXdagmat: SXmat; break;
+			case SXdag:gm = inverse? SXmat: SXdagmat; break;
 			case RX:   gm = inverse? RXmat(-parameter[0]): RXmat(parameter[0]); break;
 			case RY:   gm = inverse? RYmat(-parameter[0]): RYmat(parameter[0]); break;
 			case RZ:   gm = inverse? RZmat(-parameter[0]): RZmat(parameter[0]); break;
@@ -290,17 +289,17 @@ namespace qc {
 				} else {
 					return getiSWAPDD(dd, line, permutation);
 				}
-			case P:
+			case Peres:
 				if (inverse) {
-					return getPdagDD(dd, line, permutation);
+					return getPeresdagDD(dd, line, permutation);
 				} else {
-					return getPDD(dd, line, permutation);
+					return getPeresDD(dd, line, permutation);
 				}
-			case Pdag:
+			case Peresdag:
 				if (inverse) {
-					return getPDD(dd, line, permutation);
+					return getPeresDD(dd, line, permutation);
 				} else {
-					return getPdagDD(dd, line, permutation);
+					return getPeresdagDD(dd, line, permutation);
 				}
 			default:
 				std::ostringstream oss{};
@@ -376,7 +375,7 @@ namespace qc {
 	/***
      * Public Methods
     ***/
-	void StandardOperation::dumpOpenQASM(std::ostream& of, const regnames_t& qreg, const regnames_t& creg) const {
+	void StandardOperation::dumpOpenQASM(std::ostream& of, const regnames_t& qreg, [[maybe_unused]] const regnames_t& creg) const {
 		std::ostringstream op;
 		op << std::setprecision(std::numeric_limits<fp>::digits10);
 		if((controls.size() > 1 && type != X) || controls.size() > 2) {
@@ -405,46 +404,52 @@ namespace qc {
 				break;
 			case S:
 				if(!controls.empty()) {
-					op << "u1(pi/2)";
+					op << "p(pi/2)";
 				} else {
 					op << "s";
 				}
 				break;
 			case Sdag:
 				if(!controls.empty()) {
-					op << "u1(-pi/2)";
+					op << "p(-pi/2)";
 				} else {
 					op << "sdg";
 				}
 				break;
 			case T:
 				if(!controls.empty()) {
-					op << "u1(pi/4)";
+					op << "p(pi/4)";
 				} else {
 					op << "t";
 				}
 				break;
 			case Tdag:
 				if(!controls.empty()) {
-					op << "u1(-pi/4)";
+					op << "p(-pi/4)";
 				} else {
 					op << "tdg";
 				}
 				break;
 			case V:
-				op << "u3(pi/2, -pi/2, pi/2)";
+				op << "u(pi/2, -pi/2, pi/2)";
 				break;
 			case Vdag:
-				op << "u3(pi/2, pi/2, -pi/2)";
+				op << "u(pi/2, pi/2, -pi/2)";
 				break;
 			case U3: 
-				op << "u3(" << parameter[2] << "," << parameter[1] << "," << parameter[0] << ")";
+				op << "u(" << parameter[2] << "," << parameter[1] << "," << parameter[0] << ")";
 				break;
 			case U2:
-				op << "u2(" << parameter[1] << "," << parameter[0] << ")";
+				op << "u(pi/2, " << parameter[1] << "," << parameter[0] << ")";
 				break;
-			case U1: 
-				op << "u1(" << parameter[0] << ")";
+			case Phase:
+				op << "p(" << parameter[0] << ")";
+				break;
+			case SX:
+				op << "sx";
+				break;
+			case SXdag:
+				op << "sxdg";
 				break;
 			case RX:
 				op << "rx(" << parameter[0] << ")";
@@ -501,7 +506,7 @@ namespace qc {
 						of << "x " << qreg[c.qubit].second << ";" << std::endl;
 				}
                 return;
-			case P: 
+			case Peres:
                 of << op.str() << "cx";
 				for (const auto& c: controls)
 					of << " " << qreg[c.qubit].second << ",";
@@ -512,7 +517,7 @@ namespace qc {
 					of << " " << qreg[c.qubit].second << ",";
                 of << qreg[targets[1]].second << ";" << std::endl;
 				return;
-			case Pdag:
+			case Peresdag:
 				of << op.str() << "x";
 				for (const auto& c: controls)
 					of << " " << qreg[c.qubit].second << ",";
@@ -548,7 +553,7 @@ namespace qc {
 
 	void StandardOperation::dumpQiskit(std::ostream& of, const regnames_t& qreg,[[maybe_unused]] const regnames_t& creg, const char* anc_reg_name) const {
 		std::ostringstream op;
-		if (targets.size() > 2 || (targets.size() > 1 && type != SWAP && type != iSWAP && type != P && type != Pdag)) {
+		if (targets.size() > 2 || (targets.size() > 1 && type != SWAP && type != iSWAP && type != Peres && type != Peresdag)) {
 			std::cerr << "Multiple targets are not supported in general at the moment" << std::endl;
 		}
 		switch (type) {
@@ -703,7 +708,7 @@ namespace qc {
 						std::cerr << "Multi-controlled U2 gate currently not supported" << std::endl;
 				}
 				break;
-			case U1:
+			case Phase:
 				if (!controls.empty()) {
 					op << "qc.mcu1(" << parameter[0] << ", [";
 					for (const auto& control:controls) {
@@ -784,11 +789,11 @@ namespace qc {
 						std::cerr << "Multi-controlled iSWAP gate currently not supported" << std::endl;
 				}
 				return;
-			case P:
+			case Peres:
 				of << "qc.ccx(" << qreg[controls[0].qubit].second << ", " << qreg[targets[1]].second << ", " << qreg[targets[0]].second << ")" << std::endl;
 				of << "qc.cx(" << qreg[controls[0].qubit].second << ", " << qreg[targets[1]].second << ")" << std::endl;
 				return;
-			case Pdag:
+			case Peresdag:
 				of << "qc.cx(" << qreg[controls[0].qubit].second << ", " << qreg[targets[1]].second << ")" << std::endl;
 				of << "qc.ccx(" << qreg[controls[0].qubit].second << ", " << qreg[targets[1]].second << ", " << qreg[targets[0]].second << ")" << std::endl;
 				return;
