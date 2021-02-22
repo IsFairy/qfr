@@ -47,6 +47,15 @@ package_add_test(${PROJECT_NAME}_test ${CMAKE_CURRENT_SOURCE_DIR}/algorithms/tes
 							${CMAKE_CURRENT_SOURCE_DIR}/unittests/test_ddfunctionality.cpp
                             ${CMAKE_CURRENT_SOURCE_DIR}/unittests/test_qfr_functionality.cpp)
 
+
+
+if(SKIP_SYMLINK)
+add_custom_command(TARGET ${PROJECT_NAME}_test
+                   POST_BUILD
+                   COMMAND ${CMAKE_COMMAND} -E copy_directory ${CMAKE_CURRENT_SOURCE_DIR}/circuits $<TARGET_FILE_DIR:${PROJECT_NAME}_test>/circuits
+                   COMMENT "Copying circuits and creating symlinks for ${PROJECT_NAME}_test"
+                   VERBATIM)
+else()
 add_custom_command(TARGET ${PROJECT_NAME}_test
                    POST_BUILD
                    COMMAND ${CMAKE_COMMAND} -E create_symlink $<TARGET_FILE_DIR:${PROJECT_NAME}_test>/${PROJECT_NAME}_test ${CMAKE_BINARY_DIR}/${PROJECT_NAME}_test
@@ -54,3 +63,4 @@ add_custom_command(TARGET ${PROJECT_NAME}_test
                    COMMAND ${CMAKE_COMMAND} -E create_symlink $<TARGET_FILE_DIR:${PROJECT_NAME}_test>/circuits ${CMAKE_BINARY_DIR}/circuits
                    COMMENT "Copying circuits and creating symlinks for ${PROJECT_NAME}_test"
                    VERBATIM)
+endif()

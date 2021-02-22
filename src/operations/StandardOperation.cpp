@@ -146,7 +146,8 @@ namespace qc {
 		}
 	}
 
-	void StandardOperation::setup(unsigned short nq, fp par0, fp par1, fp par2) {
+	void StandardOperation::setup(unsigned short nq, fp par0, fp par1, fp par2, unsigned short start_qubit) {
+		this->start_qubit = start_qubit;
 		nqubits = nq;
 		parameter[0] = par0;
 		parameter[1] = par1;
@@ -159,11 +160,11 @@ namespace qc {
 		dd::Edge e{ };
 
 		line[permutation.at(targets[0])] = LINE_CONTROL_POS;
-		e = dd->makeGateDD(Xmat, nqubits, line);
+		e = dd->makeGateDD(Xmat, start_qubit, nqubits, line);
 
 		line[permutation.at(targets[0])] = LINE_TARGET;
 		line[permutation.at(targets[1])] = LINE_CONTROL_POS;
-		e = dd->multiply(e, dd->multiply(dd->makeGateDD(Xmat, nqubits, line), e));
+		e = dd->multiply(e, dd->multiply(dd->makeGateDD(Xmat, start_qubit, nqubits, line), e));
 
 		line[permutation.at(targets[1])] = LINE_TARGET;
 		return e;
@@ -173,11 +174,11 @@ namespace qc {
 		dd::Edge e{ };
 
 		line[permutation.at(targets[1])] = LINE_CONTROL_POS;
-		e = dd->makeGateDD(Xmat, nqubits, line);
+		e = dd->makeGateDD(Xmat, start_qubit, nqubits, line);
 
 		line[permutation.at(targets[0])] = LINE_DEFAULT;
 		line[permutation.at(targets[1])] = LINE_TARGET;
-		e = dd->multiply(dd->makeGateDD(Xmat, nqubits, line), e);
+		e = dd->multiply(dd->makeGateDD(Xmat, start_qubit, nqubits, line), e);
 
 		line[permutation.at(targets[0])] = LINE_TARGET;
 		return e;
@@ -187,11 +188,11 @@ namespace qc {
 		dd::Edge e{ };
 
 		line[permutation.at(targets[0])] = LINE_DEFAULT;
-		e = dd->makeGateDD(Xmat, nqubits, line);
+		e = dd->makeGateDD(Xmat, start_qubit, nqubits, line);
 
 		line[permutation.at(targets[0])] = LINE_TARGET;
 		line[permutation.at(targets[1])] = LINE_CONTROL_POS;
-		e = dd->multiply(dd->makeGateDD(Xmat, nqubits, line), e);
+		e = dd->multiply(dd->makeGateDD(Xmat, start_qubit, nqubits, line), e);
 
 		line[permutation.at(targets[1])] = LINE_TARGET;
 		return e;
@@ -203,19 +204,18 @@ namespace qc {
 
 		line[permutation.at(targets[1])] = LINE_DEFAULT;
 		line[permutation.at(targets[0])] = LINE_TARGET;
-		e = dd->multiply(e, dd->makeGateDD(Smat, nqubits, line)); // S q[0]
-		e = dd->multiply(e, dd->makeGateDD(Hmat, nqubits, line)); // H q[0]
+		e = dd->multiply(e, dd->makeGateDD(Smat, start_qubit, nqubits, line)); // S q[0]
+		e = dd->multiply(e, dd->makeGateDD(Hmat, start_qubit, nqubits, line)); // H q[0]
 
 		line[permutation.at(targets[0])] = LINE_CONTROL_POS;
 		line[permutation.at(targets[1])] = LINE_TARGET;
-		e = dd->multiply(e, dd->makeGateDD(Xmat, nqubits, line)); // CX q[0], q[1]
+		e = dd->multiply(e, dd->makeGateDD(Xmat, start_qubit, nqubits, line)); // CX q[0], q[1]
 		line[permutation.at(targets[1])] = LINE_CONTROL_POS;
 		line[permutation.at(targets[0])] = LINE_TARGET;
-		e = dd->multiply(e, dd->makeGateDD(Xmat, nqubits, line)); // CX q[1], q[0]
+		e = dd->multiply(e, dd->makeGateDD(Xmat, start_qubit, nqubits, line)); // CX q[1], q[0]
 
 		line[permutation.at(targets[0])] = LINE_DEFAULT;
-		line[permutation.at(targets[1])] = LINE_TARGET;
-		e = dd->multiply(e, dd->makeGateDD(Hmat, nqubits, line)); // H q[1]
+		e = dd->multiply(e, dd->makeGateDD(Hmat, start_qubit, nqubits, line));
 
 		line[permutation.at(targets[0])] = LINE_TARGET;
 		return e;
@@ -258,7 +258,7 @@ namespace qc {
 				if (controls.size() > 1) { //Toffoli //TODO > 0 (include CNOT?)
 					e = dd->TTlookup(nqubits, static_cast<unsigned short>(controls.size()), targets[0], line.data());
 					if (e.p == nullptr) {
-						e = dd->makeGateDD(Xmat, nqubits, line);
+						e = dd->makeGateDD(Xmat, start_qubit, nqubits, line);
 						dd->TTinsert(nqubits, static_cast<unsigned short>(controls.size()), targets[0], line.data(), e);
 					}
 					return e;
@@ -309,53 +309,53 @@ namespace qc {
 		if (multiTarget && !controlled) {
 			throw QFRException("Multi target gates not implemented yet!");
 		} else {
-			return dd->makeGateDD(gm, nqubits, line);
+			return dd->makeGateDD(gm, start_qubit, nqubits, line);
 		}
     }
 
     /***
      * Constructors
      ***/
-	StandardOperation::StandardOperation(unsigned short nq, unsigned short target, OpType g, fp lambda, fp phi, fp theta) {
+	StandardOperation::StandardOperation(unsigned short nq, unsigned short target, OpType g, fp lambda, fp phi, fp theta, unsigned short start_qubit) {
 		type = g;
-		setup(nq, lambda, phi, theta);
+		setup(nq, lambda, phi, theta, start_qubit);
 		targets.push_back(target);
 	}
 
-	StandardOperation::StandardOperation(unsigned short nq, const std::vector<unsigned short>& targets, OpType g, fp lambda, fp phi, fp theta) {
+	StandardOperation::StandardOperation(unsigned short nq, const std::vector<unsigned short>& targets, OpType g, fp lambda, fp phi, fp theta, unsigned short start_qubit) {
 		type = g;
-		setup(nq, lambda, phi, theta);
+		setup(nq, lambda, phi, theta, start_qubit);
 		this->targets = targets;
 		if (targets.size() > 1)
 			multiTarget = true;
 	}
 
-	StandardOperation::StandardOperation(unsigned short nq, Control control, unsigned short target, OpType g, fp lambda, fp phi, fp theta)
-		: StandardOperation(nq, target, g, lambda, phi, theta) {
+	StandardOperation::StandardOperation(unsigned short nq, Control control, unsigned short target, OpType g, fp lambda, fp phi, fp theta, unsigned short start_qubit)
+		: StandardOperation(nq, target, g, lambda, phi, theta, start_qubit) {
 		
 		//line[control.qubit] = control.type == Control::pos? LINE_CONTROL_POS: LINE_CONTROL_NEG;
 		controlled   = true;
 		controls.push_back(control);
 	}
 
-	StandardOperation::StandardOperation(unsigned short nq, Control control, const std::vector<unsigned short>& targets, OpType g, fp lambda, fp phi, fp theta)
-		: StandardOperation(nq, targets, g, lambda, phi, theta) {
+	StandardOperation::StandardOperation(unsigned short nq, Control control, const std::vector<unsigned short>& targets, OpType g, fp lambda, fp phi, fp theta, unsigned short start_qubit)
+		: StandardOperation(nq, targets, g, lambda, phi, theta, start_qubit) {
 		
 		//line[control.qubit] = control.type == Control::pos? LINE_CONTROL_POS: LINE_CONTROL_NEG;
 		controlled = true;
 		controls.push_back(control);
 	}
 
-	StandardOperation::StandardOperation(unsigned short nq, const std::vector<Control>& controls, unsigned short target, OpType g, fp lambda, fp phi, fp theta)
-		: StandardOperation(nq, target, g, lambda, phi, theta) {
+	StandardOperation::StandardOperation(unsigned short nq, const std::vector<Control>& controls, unsigned short target, OpType g, fp lambda, fp phi, fp theta, unsigned short start_qubit)
+		: StandardOperation(nq, target, g, lambda, phi, theta, start_qubit) {
 		
 		this->controls = controls;
 		if (!controls.empty())
 			controlled = true;
 	}
 
-	StandardOperation::StandardOperation(unsigned short nq, const std::vector<Control>& controls, const std::vector<unsigned short>& targets, OpType g, fp lambda, fp phi, fp theta)
-		: StandardOperation(nq, targets, g, lambda, phi, theta) {
+	StandardOperation::StandardOperation(unsigned short nq, const std::vector<Control>& controls, const std::vector<unsigned short>& targets, OpType g, fp lambda, fp phi, fp theta, unsigned short start_qubit)
+		: StandardOperation(nq, targets, g, lambda, phi, theta, start_qubit) {
 		
 		this->controls = controls;
 		if (!controls.empty())
@@ -363,12 +363,13 @@ namespace qc {
 	}
 
 	// MCT Constructor
-	StandardOperation::StandardOperation(unsigned short nq, const std::vector<Control>& controls, unsigned short target) 
-		: StandardOperation(nq, controls, target, X) {
+	StandardOperation::StandardOperation(unsigned short nq, const std::vector<Control>& controls, unsigned short target, unsigned short start_qubit) 
+		: StandardOperation(nq, controls, target, X, 0, 0, 0, start_qubit) {
 	}
 
-	// MCF (cSWAP), Peres, paramterized two target Constructor
-	StandardOperation::StandardOperation(unsigned short nq, const std::vector<Control>& controls, unsigned short target0, unsigned short target1, OpType g, fp lambda, fp phi, fp theta): StandardOperation(nq, controls, {target0, target1}, g, lambda, phi, theta) {
+	// MCF (cSWAP) and Peres Constructor
+	StandardOperation::StandardOperation(unsigned short nq, const std::vector<Control>& controls, unsigned short target0, unsigned short target1, OpType g, unsigned short start_qubit)
+		: StandardOperation(nq, controls, { target0, target1 }, g, 0, 0, 0, start_qubit) {
 	}
 
 	/***
